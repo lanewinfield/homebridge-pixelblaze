@@ -105,7 +105,14 @@ class PixelblazePlatformAccessory {
     setOn(value, callback) {
         this.platform.log.debug('Set Characteristic On ->', value);
         this.state.brightness = value ? 1.0 : 0.0;
-        this.device.setCommand({ brightness: this.state.brightness });
+        if (this.cctMode) {
+            // In CCT mode, control brightness via pattern's 'value' variable for fade support
+            this.device.setCommand({ brightness: 1.0 }); // Keep global brightness at max
+            this.device.setCommand({ setVars: { value: this.state.brightness } });
+        }
+        else {
+            this.device.setCommand({ brightness: this.state.brightness });
+        }
         // When powered on, set to the colorpicker / architectural mode as defined in config.
         if (value && this.platform.config.colorpicker) {
             this.device.setCommand({ activeProgramId: this.platform.config.colorpicker });
@@ -115,7 +122,13 @@ class PixelblazePlatformAccessory {
     }
     setBrightness(value, callback) {
         this.state.brightness = value / 100;
-        this.device.setCommand({ brightness: this.state.brightness });
+        if (this.cctMode) {
+            // In CCT mode, control brightness via pattern's 'value' variable for fade support
+            this.device.setCommand({ setVars: { value: this.state.brightness } });
+        }
+        else {
+            this.device.setCommand({ brightness: this.state.brightness });
+        }
         this.platform.log.debug('Set Characteristic Brightness -> ', value);
         this.updateHomeKit();
         callback(null);
