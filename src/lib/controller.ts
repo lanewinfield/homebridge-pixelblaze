@@ -77,13 +77,28 @@ export default class PixelBlazeController {
     }
 
     this.stop();
-    this.client = new WebSocket(`ws://${this.props.address}:81`);
-    this.client.binaryType = 'arraybuffer';
-    this.client.on('open', this.handleConnect.bind(this));
-    this.client.on('close', this.handleClose.bind(this));
-    this.client.on('message', this.handleMessage.bind(this));
-    this.client.on('pong', this.handlePong.bind(this));
-    this.client.on('error', (err) => this.log.error('WebSocket error:', err));
+
+    try {
+      this.client = new WebSocket(`ws://${this.props.address}:81`);
+      this.client.binaryType = 'arraybuffer';
+      this.client.on('open', this.handleConnect.bind(this));
+      this.client.on('close', this.handleClose.bind(this));
+      this.client.on('message', this.handleMessage.bind(this));
+      this.client.on('pong', this.handlePong.bind(this));
+      this.client.on('error', (err) => {
+        this.log.debug('WebSocket error:', err.message || err);
+        // Schedule reconnect on error
+        this.scheduleReconnect();
+      });
+    } catch (err) {
+      this.log.debug('Failed to create WebSocket:', err);
+      this.scheduleReconnect();
+    }
+  }
+
+  scheduleReconnect() {
+    clearTimeout(this.reconnectTimeout);
+    this.reconnectTimeout = setTimeout(() => this.connect(), 5000);
   }
 
   handleConnect() {
@@ -105,7 +120,7 @@ export default class PixelBlazeController {
 
   handleClose() {
     // this.log.debug('closing ' + this.props.address);
-    this.reconnectTimeout = setTimeout(this.connect, 1000);
+    this.scheduleReconnect();
   }
 
   handleMessage(msg: ArrayBufferLike) {

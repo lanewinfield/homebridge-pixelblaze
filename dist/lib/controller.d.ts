@@ -11,6 +11,7 @@ export default class PixelBlazeController {
     start(): void;
     stop(): void;
     connect(): void;
+    scheduleReconnect(): void;
     handleConnect(): void;
     handleClose(): void;
     handleMessage(msg: ArrayBufferLike): void;
