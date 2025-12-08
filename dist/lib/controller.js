@@ -81,6 +81,7 @@ class PixelBlazeController {
             return;
         }
         this.stop();
+        this.log.debug(`Connecting to Pixelblaze at ${this.props.address}:81...`);
         try {
             this.client = new WebSocket(`ws://${this.props.address}:81`);
             this.client.binaryType = 'arraybuffer';
@@ -89,13 +90,12 @@ class PixelBlazeController {
             this.client.on('message', this.handleMessage.bind(this));
             this.client.on('pong', this.handlePong.bind(this));
             this.client.on('error', (err) => {
-                this.log.debug('WebSocket error:', err.message || err);
-                // Schedule reconnect on error
+                this.log.warn('WebSocket error:', err.message || err);
                 this.scheduleReconnect();
             });
         }
         catch (err) {
-            this.log.debug('Failed to create WebSocket:', err);
+            this.log.error('Failed to create WebSocket:', err);
             this.scheduleReconnect();
         }
     }
@@ -104,7 +104,7 @@ class PixelBlazeController {
         this.reconnectTimeout = setTimeout(() => this.connect(), 5000);
     }
     handleConnect() {
-        // this.log.debug(`connected to ${this.props.address}`);
+        this.log.info(`Connected to Pixelblaze at ${this.props.address}`);
         this.lastSeen = new Date().getTime();
         clearTimeout(this.reconnectTimeout);
         // console.log(`In handleConnect: ${this.constructor['name']}`);
@@ -117,7 +117,7 @@ class PixelBlazeController {
         });
     }
     handleClose() {
-        // this.log.debug('closing ' + this.props.address);
+        this.log.warn(`Disconnected from Pixelblaze at ${this.props.address}, reconnecting...`);
         this.scheduleReconnect();
     }
     handleMessage(msg) {
