@@ -84,10 +84,10 @@ class PixelBlazeController {
         this.client = new WebSocket(`ws://${this.props.address}:81`);
         this.client.binaryType = 'arraybuffer';
         this.client.on('open', this.handleConnect.bind(this));
-        this.client.on('close', () => this.handleClose.bind(this));
+        this.client.on('close', this.handleClose.bind(this));
         this.client.on('message', this.handleMessage.bind(this));
         this.client.on('pong', this.handlePong.bind(this));
-        this.client.on('error', this.log.error);
+        this.client.on('error', (err) => this.log.error('WebSocket error:', err));
     }
     handleConnect() {
         // this.log.debug(`connected to ${this.props.address}`);
