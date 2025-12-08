@@ -95,7 +95,8 @@ function discover(log, foundControllerCallback) {
                     break;
                 }
                 default: {
-                    log.warn('Unknown packet type ' + header.packetType);
+                    // Ignore unknown packet types (newer firmware may send additional types)
+                    break;
                 }
             }
         });
