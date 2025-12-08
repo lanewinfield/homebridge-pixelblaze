@@ -90,7 +90,12 @@ export default class PixelblazePlatformAccessory {
       this.device.reload();
 
       if (this.device.props) {
-        this.state.brightness = parseFloat(this.device.props.brightness);
+        if (this.cctMode && this.device.props.vars && this.device.props.vars.value !== null) {
+          // In CCT mode, brightness is controlled via pattern's 'value' variable
+          this.state.brightness = this.device.props.vars.value as number;
+        } else {
+          this.state.brightness = parseFloat(this.device.props.brightness);
+        }
         this.updateHomeKit();
 
         if (this.device.props.programList) {
