@@ -1,5 +1,5 @@
-# Ignore compiled code
-dist
+# Include dist/ for git installs
+# dist
 
 # ------------- Defaults ------------- #
 

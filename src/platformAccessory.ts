@@ -3,6 +3,10 @@ import PixelblazeController from './lib/controller';
 import CustomCharacteristic from './lib/patterns';
 import PixelblazePlatform from './platform';
 
+// CCT mode constants (mireds)
+const CCT_MIN_MIREDS = 140;  // ~7100K (cool)
+const CCT_MAX_MIREDS = 500;  // ~2000K (warm)
+
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
@@ -11,12 +15,14 @@ import PixelblazePlatform from './platform';
 export default class PixelblazePlatformAccessory {
   private service: Service;
   private refresh = 5.0;
+  private cctMode: boolean;
 
   private state = {
     hue: 0,
     saturation: 0,
     brightness: 0,
     pattern: 0,
+    colorTemp: 320,  // Default to neutral (~3100K)
   };
 
   constructor(
@@ -24,6 +30,7 @@ export default class PixelblazePlatformAccessory {
     private readonly accessory: PlatformAccessory,
     private device: PixelblazeController,
   ) {
+    this.cctMode = this.platform.config.cctMode !== false;
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Electromage')
@@ -47,13 +54,26 @@ export default class PixelblazePlatformAccessory {
     this.service.getCharacteristic(this.platform.Characteristic.Brightness)
       .on('set', this.setBrightness.bind(this));
 
-    this.service
-      .getCharacteristic(this.platform.Characteristic.Hue)
-      .on('set', this.setHue.bind(this));
+    if (this.cctMode) {
+      // CCT mode: use ColorTemperature instead of Hue/Saturation
+      this.platform.log.info('CCT mode enabled for', this.device.props.address || 'Pixelblaze');
 
-    this.service
-      .getCharacteristic(this.platform.Characteristic.Saturation)
-      .on('set', this.setSaturation.bind(this));
+      this.service.getCharacteristic(this.platform.Characteristic.ColorTemperature)
+        .setProps({
+          minValue: CCT_MIN_MIREDS,
+          maxValue: CCT_MAX_MIREDS,
+        })
+        .on('set', this.setColorTemperature.bind(this));
+    } else {
+      // RGB mode: use Hue/Saturation
+      this.service
+        .getCharacteristic(this.platform.Characteristic.Hue)
+        .on('set', this.setHue.bind(this));
+
+      this.service
+        .getCharacteristic(this.platform.Characteristic.Saturation)
+        .on('set', this.setSaturation.bind(this));
+    }
 
     // Pull in the dynamically created Characteristic subclass.
     const LightPattern = CustomCharacteristic(this.platform.Characteristic).LightPattern;
@@ -160,6 +180,20 @@ export default class PixelblazePlatformAccessory {
     callback(null);
   }
 
+  setColorTemperature(value: CharacteristicValue, callback: CharacteristicSetCallback) {
+    this.state.colorTemp = value as number;
+
+    // Map mireds to hue: 500 mireds (warm) -> 0, 140 mireds (cool) -> 1
+    const hue = (CCT_MAX_MIREDS - this.state.colorTemp) / (CCT_MAX_MIREDS - CCT_MIN_MIREDS);
+    this.state.hue = Math.round((hue + Number.EPSILON) * 100) / 100;
+
+    this.platform.log.debug('Set Characteristic ColorTemperature ->', value, 'mireds, hue ->', this.state.hue);
+    this.device.setCommand({setVars: {hue: this.state.hue}});
+
+    this.updateHomeKit();
+    callback(null);
+  }
+
   setPattern(value: CharacteristicValue, callback: CharacteristicSetCallback) {
 
     this.platform.log.debug('Set Characteristic Pattern -> ', value);
@@ -172,8 +206,15 @@ export default class PixelblazePlatformAccessory {
   updateHomeKit() {
 
     this.service.updateCharacteristic(this.platform.Characteristic.On, (this.state.brightness > 0) as boolean);
-    this.service.updateCharacteristic(this.platform.Characteristic.Hue, Math.round(this.state.hue * 360));
-    this.service.updateCharacteristic(this.platform.Characteristic.Saturation, Math.round(this.state.saturation * 100));
+
+    if (this.cctMode) {
+      // Map hue back to mireds: hue 0 -> 500 mireds (warm), hue 1 -> 140 mireds (cool)
+      const mireds = Math.round(CCT_MAX_MIREDS - (this.state.hue * (CCT_MAX_MIREDS - CCT_MIN_MIREDS)));
+      this.service.updateCharacteristic(this.platform.Characteristic.ColorTemperature, mireds);
+    } else {
+      this.service.updateCharacteristic(this.platform.Characteristic.Hue, Math.round(this.state.hue * 360));
+      this.service.updateCharacteristic(this.platform.Characteristic.Saturation, Math.round(this.state.saturation * 100));
+    }
   }
 
 }
