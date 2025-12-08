@@ -13,6 +13,8 @@ export default class PixelblazePlatformAccessory {
     private service;
     private refresh;
     private cctMode;
+    private lastCommandTime;
+    private commandCooldown;
     private state;
     constructor(platform: PixelblazePlatform, accessory: PlatformAccessory, device: PixelblazeController);
     setOn(value: CharacteristicValue, callback: CharacteristicSetCallback): void;

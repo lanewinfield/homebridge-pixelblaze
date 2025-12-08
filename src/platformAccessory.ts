@@ -16,6 +16,8 @@ export default class PixelblazePlatformAccessory {
   private service: Service;
   private refresh = 5.0;
   private cctMode: boolean;
+  private lastCommandTime = 0;
+  private commandCooldown = 3000;  // Don't sync from device for 3s after sending command
 
   private state = {
     hue: 0,
@@ -89,6 +91,12 @@ export default class PixelblazePlatformAccessory {
     setInterval(() => {
       this.device.reload();
 
+      // Skip sync if a command was recently sent (avoid overwriting with stale state)
+      const timeSinceCommand = Date.now() - this.lastCommandTime;
+      if (timeSinceCommand < this.commandCooldown) {
+        return;
+      }
+
       if (this.device.props) {
         if (this.cctMode && this.device.props.vars && this.device.props.vars.value !== null) {
           // In CCT mode, brightness is controlled via pattern's 'value' variable
@@ -143,6 +151,7 @@ export default class PixelblazePlatformAccessory {
 
     this.platform.log.debug('Set Characteristic On ->', value);
     this.state.brightness = value as boolean ? 1.0 : 0.0;
+    this.lastCommandTime = Date.now();
 
     if (this.cctMode) {
       // In CCT mode, control brightness via pattern's 'value' variable for fade support
@@ -164,6 +173,7 @@ export default class PixelblazePlatformAccessory {
   setBrightness(value: CharacteristicValue, callback: CharacteristicSetCallback) {
 
     this.state.brightness = (value as number) / 100;
+    this.lastCommandTime = Date.now();
 
     if (this.cctMode) {
       // In CCT mode, control brightness via pattern's 'value' variable for fade support
@@ -200,6 +210,7 @@ export default class PixelblazePlatformAccessory {
 
   setColorTemperature(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.state.colorTemp = value as number;
+    this.lastCommandTime = Date.now();
 
     // Map mireds to hue: 500 mireds (warm) -> 0, 140 mireds (cool) -> 1
     const hue = (CCT_MAX_MIREDS - this.state.colorTemp) / (CCT_MAX_MIREDS - CCT_MIN_MIREDS);

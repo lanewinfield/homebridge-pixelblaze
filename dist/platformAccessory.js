@@ -18,6 +18,8 @@ class PixelblazePlatformAccessory {
         this.accessory = accessory;
         this.device = device;
         this.refresh = 5.0;
+        this.lastCommandTime = 0;
+        this.commandCooldown = 3000; // Don't sync from device for 3s after sending command
         this.state = {
             hue: 0,
             saturation: 0,
@@ -71,6 +73,11 @@ class PixelblazePlatformAccessory {
         // Check the Pixelblaze state to keep it in sync.
         setInterval(() => {
             this.device.reload();
+            // Skip sync if a command was recently sent (avoid overwriting with stale state)
+            const timeSinceCommand = Date.now() - this.lastCommandTime;
+            if (timeSinceCommand < this.commandCooldown) {
+                return;
+            }
             if (this.device.props) {
                 if (this.cctMode && this.device.props.vars && this.device.props.vars.value !== null) {
                     // In CCT mode, brightness is controlled via pattern's 'value' variable
@@ -111,6 +118,7 @@ class PixelblazePlatformAccessory {
     setOn(value, callback) {
         this.platform.log.debug('Set Characteristic On ->', value);
         this.state.brightness = value ? 1.0 : 0.0;
+        this.lastCommandTime = Date.now();
         if (this.cctMode) {
             // In CCT mode, control brightness via pattern's 'value' variable for fade support
             this.device.setCommand({ brightness: 1.0 }); // Keep global brightness at max
@@ -128,6 +136,7 @@ class PixelblazePlatformAccessory {
     }
     setBrightness(value, callback) {
         this.state.brightness = value / 100;
+        this.lastCommandTime = Date.now();
         if (this.cctMode) {
             // In CCT mode, control brightness via pattern's 'value' variable for fade support
             this.device.setCommand({ setVars: { value: this.state.brightness } });
@@ -155,6 +164,7 @@ class PixelblazePlatformAccessory {
     }
     setColorTemperature(value, callback) {
         this.state.colorTemp = value;
+        this.lastCommandTime = Date.now();
         // Map mireds to hue: 500 mireds (warm) -> 0, 140 mireds (cool) -> 1
         const hue = (CCT_MAX_MIREDS - this.state.colorTemp) / (CCT_MAX_MIREDS - CCT_MIN_MIREDS);
         this.state.hue = Math.round((hue + Number.EPSILON) * 100) / 100;
